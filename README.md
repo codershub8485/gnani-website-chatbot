@@ -62,7 +62,7 @@ git clone https://github.com/codershub8485/gnani-website-chatbot.git
 cd gnani-website-chatbot
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env            # set GROQ_API_KEY=gsk_... in .env
+echo "GROQ_API_KEY=gsk_your_key" > .env             # your free Groq key
 uvicorn app.server:app --port 8000                   # open http://localhost:8000
 ```
 
