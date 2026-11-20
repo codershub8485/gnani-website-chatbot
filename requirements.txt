@@ -1,0 +1,10 @@
+openai>=1.55
+anthropic>=2.11
+fastapi>=0.115
+uvicorn[standard]>=0.30
+requests>=2.32
+beautifulsoup4>=4.13
+lxml>=5.0
+snowballstemmer>=2.2
+python-dotenv>=1.0
+pytest>=8.0
