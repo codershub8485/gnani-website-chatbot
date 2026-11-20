@@ -32,10 +32,9 @@ def main() -> int:
         t0 = time.time()
         reply = bot.ask(case["question"])
         secs = time.time() - t0
-        if reply.status == "error":
-            print(f"ERROR: {reply.answer}")
-            return 2
-        if case["expect"] == "answer":
+        if reply.status == "error":  # record it as a failure and keep going
+            ok, note = False, f"error: {reply.answer}"
+        elif case["expect"] == "answer":
             missing = [m for m in case.get("must_mention", []) if m.lower() not in reply.answer.lower()]
             ok = reply.status == "answered" and not missing
             note = f"missing {missing}" if missing else ""

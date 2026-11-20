@@ -173,3 +173,20 @@ def test_repeated_standalone_question_is_served_from_cache():
     # with conversation history the answer may differ, so the LLM is asked again
     bot.ask("What is Gnani Prisma?", [{"role": "user", "content": "What is Timbre?"}, {"role": "assistant", "content": "TTS."}])
     assert len(fake.calls) == 2
+
+
+def test_context_budget_keeps_best_passages_and_the_menu(monkeypatch):
+    from app import chatbot as cb
+    from app.retriever import Chunk
+
+    monkeypatch.setattr(cb.config, "MAX_CONTEXT_CHARS", 250)
+    chunks = [Chunk(i, f"u{i}", "t", "", "x" * 100, "resources") for i in range(5)]
+    menu = Chunk(9, "menu", "Menu", "", "m" * 50, "menu")
+    kept = cb._fit_budget(chunks + [menu])
+    assert [c.id for c in kept] == [0, 1, 9]  # 50 (menu) + 100 + 100 <= 250
+
+
+def test_citation_ids_written_as_strings_are_accepted():
+    bot, _ = make_bot(payload={"status": "answered", "answer": "Speech to text.", "source_ids": ["1"]})
+    reply = bot.ask("What is Gnani Prisma?")
+    assert reply.status == "answered" and reply.sources

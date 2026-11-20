@@ -34,6 +34,7 @@ STOPWORDS = set(
     something anything thing things way ways""".split()
 )
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+TAG_LINE_RE = re.compile(r"^\s*(<[^>]+>\s*)+$")
 
 
 _STEMMER = snowballstemmer.stemmer("english")  # 'pricing'/'prices' -> 'price', 'agents' -> 'agent'
@@ -75,6 +76,8 @@ def _lines(text: str, max_words: int) -> list[str]:
     """Page lines, with any paragraph longer than max_words split at sentence ends."""
     out = []
     for line in text.splitlines():
+        if TAG_LINE_RE.match(line):  # stray markup such as "</svg>" from page embeds
+            continue
         if len(line.split()) <= max_words:
             out.append(line)
             continue

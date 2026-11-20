@@ -27,6 +27,9 @@ CHUNK_WORDS = int(os.getenv("GNANI_CHUNK_WORDS", "220"))
 CHUNK_OVERLAP_WORDS = int(os.getenv("GNANI_CHUNK_OVERLAP_WORDS", "40"))
 TOP_K = int(os.getenv("GNANI_TOP_K", "6"))
 MAX_CHUNKS_PER_PAGE = int(os.getenv("GNANI_MAX_CHUNKS_PER_PAGE", "3"))
+# Upper bound on retrieved text sent per question (~2.5K tokens), so prompt + output stays
+# well inside the Groq free tier's 8K tokens/minute even for number-heavy pages.
+MAX_CONTEXT_CHARS = int(os.getenv("GNANI_MAX_CONTEXT_CHARS", "9000"))
 
 # --- LLM --------------------------------------------------------------------
 # groq (default, free key) | ollama (local, no key) | anthropic | openai-compatible
@@ -37,6 +40,12 @@ DEFAULT_MODELS = {
     "anthropic": "claude-opus-5-5",
 }
 MODEL = os.getenv("GNANI_MODEL", "")  # empty = the provider's default above
+# Groq's free tier has a per-model daily token quota (200K tokens/day, about 50 questions).
+# When the main model's quota is used up, the bot switches to this model, which has its
+# own quota, until the main model is available again. Empty = no fallback.
+FALLBACK_MODEL = os.getenv(
+    "GNANI_FALLBACK_MODEL", "openai/gpt-oss-20b" if LLM_PROVIDER == "groq" else ""
+)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 LLM_BASE_URL = os.getenv("GNANI_LLM_BASE_URL", "")  # only needed for openai-compatible
 LLM_API_KEY = os.getenv("GNANI_LLM_API_KEY", "")  # only needed for openai-compatible

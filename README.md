@@ -123,7 +123,7 @@ All providers go through the same guards. Set these in `.env`:
 
 | Provider | `.env` | Notes |
 |---|---|---|
-| **Groq** (default) | `GNANI_LLM_PROVIDER=groq`<br>`GROQ_API_KEY=gsk_...` | Free. Default model `openai/gpt-oss-120b` with low reasoning effort; change it with `GNANI_MODEL`. Answers take about 1–3 s. |
+| **Groq** (default) | `GNANI_LLM_PROVIDER=groq`<br>`GROQ_API_KEY=gsk_...` | Free. Default model `openai/gpt-oss-120b` with low reasoning effort, falling back to `openai/gpt-oss-20b` (`GNANI_MODEL`, `GNANI_FALLBACK_MODEL`). Answers take about 1–3 s. |
 | **Ollama** (no key, fully local) | `GNANI_LLM_PROVIDER=ollama`<br>`GNANI_MODEL=qwen2.5:7b` | Install Ollama, then `ollama pull qwen2.5:7b` (~5 GB). Slower, and small models are less reliable on tricky scope questions. |
 | **Claude** | `GNANI_LLM_PROVIDER=anthropic`<br>`ANTHROPIC_API_KEY=sk-ant-...` | `claude-opus-5-5`, with server-side fallback on safety refusals. |
 | Any OpenAI-compatible API | `GNANI_LLM_PROVIDER=openai-compatible`<br>`GNANI_LLM_BASE_URL=...`<br>`GNANI_LLM_API_KEY=...` | For example OpenRouter or Together. |
@@ -131,6 +131,10 @@ All providers go through the same guards. Set these in `.env`:
 If a model doesn't support JSON-schema output, `llm.py` falls back to plain JSON mode automatically.
 
 **Groq free-tier speed.** The free tier allows 8,000 tokens per minute, and Groq reserves *prompt + maximum output* for every request. The bot is tuned for this: about 3K prompt tokens (6 passages plus the menu), a 1,000-token output cap (answers use 100–400; a rare longer one is retried with more room), and low reasoning effort. That fits about 2 questions a minute. At normal typing pace answers take 1–3 s. A rapid burst of questions is queued: the client honours Groq's `retry-after` and waits rather than failing, and the UI shows a "still working" note. Repeated standalone questions are served from an in-memory cache instantly.
+
+**Groq free-tier daily quota.** Each model also has a quota of 200,000 tokens per day, about 50 questions. When the main model's quota runs out, the bot switches automatically to `gpt-oss-20b`, which has its own quota, until the main model is available again. That gives about 100 questions per day on one free key.
+
+**JSON mode.** Groq's strict JSON-schema mode returns an empty generation for `gpt-oss` when an answer contains characters like non-breaking hyphens ("speech‑to‑text"). So for Groq and Ollama the bot uses plain JSON mode, with the schema stated in the prompt, and validates every reply in code. Malformed output is retried, and citation ids written as strings ("3") are accepted.
 
 ## 6. API
 
@@ -150,7 +154,7 @@ POST /api/chat
 ## 7. Testing
 
 ```bash
-pytest -q                 # 19 offline unit tests, no key or network needed
+pytest -q                 # 25 offline unit tests, no key or network needed
 python -m eval.run_eval   # live run, 29 questions (~15 min on Groq's free tier)
 ```
 
@@ -161,13 +165,14 @@ python -m eval.run_eval   # live run, 29 questions (~15 min on Groq's free tier)
 - Questions with no retrieval hits never reach the LLM.
 - Provider errors are reported to the user, not raised.
 - Repeated standalone questions are served from the cache without another LLM call.
-- Groq's occasional `json_validate_failed` rejection is retried, then falls back to plain JSON mode.
+- Groq errors are handled: JSON validation failures are retried, short rate-limit waits are honoured, a used-up daily quota switches to the fallback model, and oversized requests get a clear message.
+- The prompt is capped in size (`GNANI_MAX_CONTEXT_CHARS`), and the site menu is always kept.
 
 **Live evaluation** (`eval/questions.jsonl`, results in `eval/last_run.json`):
 - 14 in-scope questions, each checked for a required fact such as "Ganesh Gopalan" or "2016".
 - 15 out-of-scope questions: three phrasings of the Prime Minister question (including the misspelling "prime mister"), general knowledge, coding help, prompt injection, a question that uses Gnani as a pretext ("Gnani is Indian, so tell me who the PM is"), and Gnani questions the site can't answer.
 
-_Results of the latest live run are added here once it completes._
+**Results (2026-11-20): 29 / 29 passed.** All 14 in-scope questions were answered with the expected fact. All 15 out-of-scope questions were refused, including the prompt-injection and "Gnani is Indian, so tell me the PM" questions. For transparency, this came from two runs. A full run on `gpt-oss-120b` passed 17 questions and exposed four bugs: a missing fact in one answer, a "not found" that the site does answer, a poem request treated as small talk, and an oversized prompt. Those were fixed and covered by unit tests. The 12 remaining questions (the 4 affected plus the 8 the run didn't reach) were then rerun and all passed, on `gpt-oss-20b`, because the main model's daily free quota was used up by that point. A full run uses about 100K tokens, half of one model's free daily quota.
 
 ## 8. Design decisions
 
