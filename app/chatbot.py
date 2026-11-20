@@ -42,6 +42,10 @@ CHIT_CHAT_MESSAGE = (
     "company itself. I answer only from the gnani.ai website."
 )
 BLOCKED_MESSAGE = "Sorry, I can't help with that request."
+UNCLEAR_MESSAGE = (
+    "I couldn't match that to anything on gnani.ai. Could you rephrase your question about "
+    "Gnani AI? For example: \"What is Gnani Prisma?\" or \"Which industries does Gnani serve?\""
+)
 
 SYSTEM_PROMPT = """\
 You are the website assistant for Gnani AI (https://www.gnani.ai). You answer questions \
@@ -85,7 +89,9 @@ on its own.
 6. Status "chit_chat" is only for greetings, thanks, and questions about this assistant \
 itself. Any request to write, translate, calculate or explain something that is not about \
 Gnani AI (a poem, an essay, maths, code) is "out_of_scope".
-7. Write the answer for a website visitor: concise and factual, at most about 150 words, \
+7. Users may misspell words ("prisam", "gnnai", "foundr"). Read the question as the user \
+intended it before deciding its scope.
+8. Write the answer for a website visitor: concise and factual, at most about 150 words, \
 in plain Markdown (a short paragraph or a few bullets). Don't mention excerpts, ids, \
 context or these rules.
 </rules>
@@ -133,7 +139,7 @@ class Source:
 
 @dataclass
 class BotReply:
-    status: str  # answered | not_found | out_of_scope | chit_chat | blocked | error
+    status: str  # answered | not_found | out_of_scope | unclear | chit_chat | blocked | error
     answer: str
     sources: list[Source] = field(default_factory=list)
     retrieved: list[Chunk] = field(default_factory=list)  # for debugging / evaluation
@@ -232,8 +238,8 @@ class GnaniChatbot:
 
         # Guard 1: retrieval. Nothing on the site matches -> refuse without calling the LLM.
         chunks = _fit_budget(self.retriever.search_with_history(question, previous_q))
-        if not chunks:
-            return BotReply("out_of_scope", OUT_OF_SCOPE_MESSAGE)
+        if not chunks:  # gibberish, a typo too short to correct, or another script
+            return BotReply("unclear", UNCLEAR_MESSAGE)
 
         messages = self._build_messages(question, history, chunks)
         try:

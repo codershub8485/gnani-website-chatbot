@@ -12,6 +12,7 @@ from app.chatbot import (
     CHIT_CHAT_MESSAGE,
     NOT_FOUND_MESSAGE,
     OUT_OF_SCOPE_MESSAGE,
+    UNCLEAR_MESSAGE,
     GnaniChatbot,
 )
 from app.llm import LLMError, LLMRefusal, final_text
@@ -77,7 +78,7 @@ def test_retrieval_returns_nothing_for_unrelated_words():
 def test_no_retrieval_hits_skips_llm():
     bot, fake = make_bot(payload={"status": "answered", "answer": "x", "source_ids": [1]})
     reply = bot.ask("cricket football weather")
-    assert reply.status == "out_of_scope" and reply.answer == OUT_OF_SCOPE_MESSAGE
+    assert reply.status == "unclear" and reply.answer == UNCLEAR_MESSAGE
     assert fake.calls == []
 
 
@@ -205,3 +206,23 @@ def test_server_turns_unexpected_errors_into_a_polite_json_reply(monkeypatch):
     client = TestClient(server.app)  # lifespan not entered: no index build needed
     r = client.post("/api/chat", json={"message": "What is Gnani Prisma?"})
     assert r.status_code == 200 and r.json()["status"] == "error"
+
+
+@pytest.mark.parametrize("typo, page", [("prisam", "/models"), ("gnnai foundr", "/about-us"), ("timbr", "/models")])
+def test_typos_are_corrected_against_site_vocabulary(typo, page):
+    hits = Retriever(PAGES).search(typo)
+    assert hits and hits[0][0].url.endswith(page)
+
+
+def test_short_gibberish_is_not_corrected():
+    r = Retriever(PAGES)
+    assert r.correct("whio") is None and r.search("whio") == []
+
+
+def test_correction_prefers_common_site_words():
+    r = Retriever.from_file()  # full gnani.ai snapshot
+    assert r.correct("gnnai") == "gnani"
+    assert r.correct("minster") == "minister"
+    assert r.correct("artah") == "artha"
+    assert r.correct("prisam") == "prisma"
+    assert r.correct("whio") is None

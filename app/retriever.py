@@ -13,6 +13,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
+from difflib import SequenceMatcher, get_close_matches
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -165,6 +166,17 @@ class Retriever:
         self.idf = {
             t: math.log(1 + (n - len(p) + 0.5) / (len(p) + 0.5)) for t, p in self.postings.items()
         }
+        # Site vocabulary (real words, not stems) with frequencies, grouped by length,
+        # for fast spelling correction of query words.
+        self.word_freq: Counter[str] = Counter()
+        for c in self.chunks:
+            self.word_freq.update(
+                w for w in TOKEN_RE.findall(f"{c.title} {c.text}".lower())
+                if w.isalpha() and len(w) >= 4 and w not in STOPWORDS
+            )
+        self.vocab_by_len: dict[int, list[str]] = defaultdict(list)
+        for w in self.word_freq:
+            self.vocab_by_len[len(w)].append(w)
 
     @classmethod
     def from_file(cls, path: Path = config.PAGES_FILE) -> "Retriever":
@@ -174,12 +186,38 @@ class Retriever:
             pages = [json.loads(line) for line in f if line.strip()]
         return cls(pages)
 
-    def _scores(self, query: str) -> dict[int, float]:
-        scores: dict[int, float] = defaultdict(float)
-        terms = {t: 1.0 for t in tokenize(query)}
+    def correct(self, word: str) -> str | None:
+        """Closest site word for a query word that doesn't occur on the site
+        ("prisam" -> "prisma", "gnnai" -> "gnani"), or None if nothing is close enough.
+        Candidates are scored by similarity plus a small bonus for how common the word is
+        on the site, so "gnnai" becomes "gnani" (very common), not "gnaniai" (rare)."""
+        if not word.isalpha() or len(word) < 4 or _stem(word) in self.postings:
+            return None
+        candidates = [w for d in (-2, -1, 0, 1, 2) for w in self.vocab_by_len.get(len(word) + d, ())]
+        matches = get_close_matches(word, candidates, n=10, cutoff=0.8)
+        if not matches:
+            return None
+        return max(
+            matches,
+            key=lambda m: SequenceMatcher(None, word, m).ratio() + 0.03 * math.log10(self.word_freq[m] + 1),
+        )
+
+    def query_terms(self, query: str) -> dict[str, float]:
+        """Search terms with weights: the query's words (typos corrected), plus synonyms."""
+        terms: dict[str, float] = {}
+        for word in TOKEN_RE.findall(query.lower()):
+            if word in STOPWORDS:
+                continue
+            fixed = self.correct(word)
+            terms[_stem(fixed or word)] = 1.0
         for t in list(terms):
             for syn in QUERY_SYNONYMS.get(t, ()):
                 terms.setdefault(syn, SYNONYM_WEIGHT)
+        return terms
+
+    def _scores(self, query: str) -> dict[int, float]:
+        scores: dict[int, float] = defaultdict(float)
+        terms = self.query_terms(query)
         for term, weight in terms.items():
             for doc_id, tf in self.postings.get(term, ()):
                 dl = self.doc_len[doc_id]

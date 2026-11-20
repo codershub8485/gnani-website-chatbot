@@ -20,7 +20,7 @@ from app.chatbot import GnaniChatbot
 from app.retriever import Retriever
 
 HERE = Path(__file__).parent
-REFUSALS = {"out_of_scope", "not_found", "blocked"}
+REFUSALS = {"out_of_scope", "not_found", "unclear", "blocked"}
 
 
 def main() -> int:

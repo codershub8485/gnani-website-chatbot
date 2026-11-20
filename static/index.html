@@ -122,9 +122,9 @@ function addUser(text) {
 }
 function addBot(reply) {
   const d = document.createElement("div");
-  const refused = ["out_of_scope", "not_found", "blocked", "error"].includes(reply.status);
+  const refused = ["out_of_scope", "not_found", "unclear", "blocked", "error"].includes(reply.status);
   d.className = "msg bot" + (refused ? " refused" : "");
-  const labels = { out_of_scope: "Outside website scope", not_found: "Not on gnani.ai", blocked: "Declined", error: "Error" };
+  const labels = { out_of_scope: "Outside website scope", not_found: "Not on gnani.ai", unclear: "Please rephrase", blocked: "Declined", error: "Error" };
   let html = labels[reply.status] ? `<span class="tag">${labels[reply.status]}</span>` : "";
   html += renderMarkdown(reply.answer);
   if (reply.sources && reply.sources.length) {

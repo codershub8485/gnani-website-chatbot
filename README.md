@@ -49,9 +49,12 @@ This is a Retrieval-Augmented Generation (RAG) pipeline with a scope guard on to
 
 **Why keyword matching alone isn't enough:** gnani.ai itself says *"Prime Minister Narendra Modi delivered the keynote"* (in its Global Fintech Fest 2026 blog post). So "Who is the Prime Minister of India?" retrieves a real gnani.ai passage. A naive bot would answer "Narendra Modi". This one refuses, because the model judges the **topic of the question**, not word overlap.
 
-There are two kinds of "no":
+There are three kinds of "no":
 - **out_of_scope:** the question isn't about Gnani AI.
 - **not_found:** the question is about Gnani, but the site doesn't say. The bot says so instead of guessing.
+- **unclear:** nothing in the input matches the site (e.g. "whio"), so the bot asks the user to rephrase.
+
+**Typos:** words that don't exist on the site are corrected to the closest real site word before searching ("prisam" → Prisma, "gnnai" → Gnani, "inida" → India). The model is also told to read questions as intended. So "who foundr gnnai" gets the founders, and "who is prime minster of inida" is still refused.
 
 ## 3. Run it locally
 
@@ -91,7 +94,7 @@ tests/             unit tests       eval/        live evaluation questions + run
 ## 5. Testing and results
 
 ```bash
-pytest -q                 # 26 unit tests: offline, no key needed
+pytest -q                 # 31 unit tests: offline, no key needed
 python -m eval.run_eval   # 29 live questions (~15 min on Groq's free tier)
 ```
 
@@ -107,7 +110,7 @@ python -m eval.run_eval   # 29 live questions (~15 min on Groq's free tier)
 |---|---|
 | Crawl from the sitemap; skip the `/ja-jp/` mirror | It's the site's own list of public pages. The Japanese pages duplicate the English content. |
 | Strip the menu, footer and banner from every page | They repeat on every page and would dominate search results. The menu is kept once and attached to every question, because it lists every product, industry and use case. |
-| BM25 instead of embeddings | The site's vocabulary is distinctive (Evon, Prisma, Timbre, Plexus). BM25 needs no vector DB or second API, is deterministic, and builds in about 2 s. Its weak spots are handled with stemming, URL words, a small synonym list and near-duplicate removal. |
+| BM25 instead of embeddings | The site's vocabulary is distinctive (Evon, Prisma, Timbre, Plexus). BM25 needs no vector DB or second API, is deterministic, and builds in about 2 s. Its weak spots are handled with stemming, URL words, a small synonym list, typo correction and near-duplicate removal. |
 | Fixed refusals and mandatory citations | Scope and sources are decided in code, so a refusal can't leak knowledge and links can't be invented. |
 | Free open-weight model on Groq | Anyone can run the project at no cost. The provider is one setting. |
 
