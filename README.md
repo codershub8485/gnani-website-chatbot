@@ -156,7 +156,7 @@ POST /api/chat
 ## 7. Testing
 
 ```bash
-pytest -q                 # 25 offline unit tests, no key or network needed
+pytest -q                 # 26 offline unit tests, no key or network needed
 python -m eval.run_eval   # live run, 29 questions (~15 min on Groq's free tier)
 ```
 

@@ -58,7 +58,11 @@ class ChatResponse(BaseModel):
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> dict:
     # Sync handler: FastAPI runs it in a worker thread, so the blocking API call is fine.
-    reply = bot.ask(req.message, [t.model_dump() for t in req.history])
+    try:
+        reply = bot.ask(req.message, [t.model_dump() for t in req.history])
+    except Exception:  # never send the UI a bare 500; log it and answer politely
+        logging.exception("Unhandled error while answering %r", req.message[:200])
+        return {"status": "error", "answer": "Sorry, something went wrong. Please try again.", "sources": []}
     return reply.to_dict()
 
 

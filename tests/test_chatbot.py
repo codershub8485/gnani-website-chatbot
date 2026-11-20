@@ -190,3 +190,18 @@ def test_citation_ids_written_as_strings_are_accepted():
     bot, _ = make_bot(payload={"status": "answered", "answer": "Speech to text.", "source_ids": ["1"]})
     reply = bot.ask("What is Gnani Prisma?")
     assert reply.status == "answered" and reply.sources
+
+
+def test_server_turns_unexpected_errors_into_a_polite_json_reply(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import server
+
+    class Boom:
+        def ask(self, *a, **k):
+            raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(server, "bot", Boom())
+    client = TestClient(server.app)  # lifespan not entered: no index build needed
+    r = client.post("/api/chat", json={"message": "What is Gnani Prisma?"})
+    assert r.status_code == 200 and r.json()["status"] == "error"
