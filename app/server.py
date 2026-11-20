@@ -11,6 +11,7 @@ from typing import Literal
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import config
@@ -32,6 +33,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Gnani.ai Website Assistant", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")  # favicon and icons
 
 
 class Turn(BaseModel):
@@ -80,3 +82,9 @@ def health() -> dict:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    # Browsers and crawlers request /favicon.ico directly; serve the PNG version.
+    return FileResponse(STATIC_DIR / "favicon-32.png", media_type="image/png")

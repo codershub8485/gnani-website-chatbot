@@ -226,3 +226,14 @@ def test_correction_prefers_common_site_words():
     assert r.correct("artah") == "artha"
     assert r.correct("prisam") == "prisma"
     assert r.correct("whio") is None
+
+
+@pytest.mark.parametrize("path, kind", [("/favicon.ico", "image/png"), ("/static/favicon.svg", "image/svg+xml"),
+                                        ("/static/apple-touch-icon.png", "image/png")])
+def test_icons_are_served(path, kind):
+    from fastapi.testclient import TestClient
+
+    from app import server
+
+    r = TestClient(server.app).get(path)
+    assert r.status_code == 200 and r.headers["content-type"].startswith(kind)
